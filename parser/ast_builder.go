@@ -6,23 +6,99 @@ type AstBuilder struct {
 }
 
 type File struct {
-	Header *Header
+	Header  *Header
 	Classes []*Class
 }
 
 type Header struct {
-	Value string
+	Value []string
 }
 
 type Class struct {
 	Name string
+	Properties map[string]*Property
+	Methods map[string]*Method
+	PrimaryConstructor *PrimaryConstructor
+	Declarations []Node
 }
+
+type Property struct {
+	Name string
+	Init string
+}
+
+type PrimaryConstructor struct {
+	Parameters []*Parameter
+}
+
+type Parameter struct {
+	Modifiers []*Modifier
+	TypeRef *TypeRef
+	Identifier string
+	Expression Node
+}
+
+type Method struct {
+	AccessModifiers []*Modifier
+	Name string
+	Statements Block
+}
+
+type Modifier struct {
+	Name string
+}
+
+type If struct {
+	Condition Node
+	IfStatement *Block
+	ElseStatement *Block
+}
+
+type For struct {
+	Expression Node
+	Identifier string
+	Block *Block
+}
+
+type While struct {
+	Condition Node
+	Block *Block
+}
+
+type Switch struct {
+	Condition Node
+	Whens []When
+	Else *Block
+}
+
+type When struct {
+	Expression Node
+	Block *Block
+}
+
+var publicModifier = &Modifier{"public"}
+var privateModifier = &Modifier{"private"}
+var protectedModifier = &Modifier{"protected"}
+var globalModifier = &Modifier{"global"}
+
+type Block struct {
+	Statements []*Node
+}
+
+type Node interface {
+
+}
+
+type TypeRef struct {
+	Name []string
+}
+
 
 func (v *AstBuilder) VisitKotlinFile(ctx *KotlinFileContext) interface{} {
 	preamble := ctx.Preamble().Accept(v)
 	klass := ctx.AllTopLevelObject()[0].Accept(v)
 	return &File{
-		Header: preamble.(*Header),
+		Header:  preamble.(*Header),
 		Classes: []*Class{klass.(*Class)},
 	}
 }
@@ -45,7 +121,7 @@ func (v *AstBuilder) VisitFileAnnotation(ctx *FileAnnotationContext) interface{}
 
 func (v *AstBuilder) VisitPackageHeader(ctx *PackageHeaderContext) interface{} {
 	return &Header{
-		Value: ctx.Identifier().Accept(v).(string),
+		Value: ctx.Identifier().Accept(v).([]string),
 	}
 }
 
@@ -66,21 +142,51 @@ func (v *AstBuilder) VisitTopLevelObject(ctx *TopLevelObjectContext) interface{}
 }
 
 func (v *AstBuilder) VisitClassDeclaration(ctx *ClassDeclarationContext) interface{} {
+	name := ctx.SimpleIdentifier().Accept(v).(string)
+	declarations := ctx.ClassBody().Accept(v).([]Node)
+	var constructor *PrimaryConstructor
+	if c := ctx.PrimaryConstructor(); c != nil {
+		constructor = c.Accept(v).(*PrimaryConstructor)
+	}
 	return &Class{
-		Name: ctx.SimpleIdentifier().Accept(v).(string),
+		Name: name,
+		PrimaryConstructor: constructor,
+		Declarations: declarations,
 	}
 }
 
 func (v *AstBuilder) VisitPrimaryConstructor(ctx *PrimaryConstructorContext) interface{} {
-	return v.VisitChildren(ctx)
+	// ctx.ModifierList()
+	return ctx.ClassParameters().Accept(v).(*PrimaryConstructor)
 }
 
 func (v *AstBuilder) VisitClassParameters(ctx *ClassParametersContext) interface{} {
-	return v.VisitChildren(ctx)
+	parameters := make([]*Parameter, len(ctx.AllClassParameter()))
+	for i, p := range ctx.AllClassParameter() {
+		parameters[i] = p.Accept(v).(*Parameter)
+	}
+	return &PrimaryConstructor{
+		Parameters: parameters,
+	}
 }
 
 func (v *AstBuilder) VisitClassParameter(ctx *ClassParameterContext) interface{} {
-	return v.VisitChildren(ctx)
+	name := ctx.SimpleIdentifier().Accept(v).(string)
+	ktype := ctx.Ktype().Accept(v).(*TypeRef)
+	var expression Node
+	if e := ctx.Expression(); e != nil {
+		expression = e.Accept(v).(Node)
+	}
+	var modifiers []*Modifier
+	if m := ctx.ModifierList(); m != nil {
+		modifiers = m.Accept(v).([]*Modifier)
+	}
+	return &Parameter{
+		Modifiers: modifiers,
+		Identifier: name,
+		TypeRef: ktype,
+		Expression: expression,
+	}
 }
 
 func (v *AstBuilder) VisitDelegationSpecifiers(ctx *DelegationSpecifiersContext) interface{} {
@@ -100,11 +206,21 @@ func (v *AstBuilder) VisitExplicitDelegation(ctx *ExplicitDelegationContext) int
 }
 
 func (v *AstBuilder) VisitClassBody(ctx *ClassBodyContext) interface{} {
-	return v.VisitChildren(ctx)
+	declarations := make([]Node, len(ctx.AllClassMemberDeclaration()))
+	for i, decl := range ctx.AllClassMemberDeclaration() {
+		declarations[i] = decl.Accept(v)
+	}
+	return declarations
 }
 
 func (v *AstBuilder) VisitClassMemberDeclaration(ctx *ClassMemberDeclarationContext) interface{} {
-	return v.VisitChildren(ctx)
+	if decl := ctx.PropertyDeclaration(); decl != nil {
+		return decl.Accept(v)
+	}
+	if decl := ctx.FunctionDeclaration(); decl != nil {
+		return decl.Accept(v)
+	}
+	return nil
 }
 
 func (v *AstBuilder) VisitAnonymousInitializer(ctx *AnonymousInitializerContext) interface{} {
@@ -132,7 +248,8 @@ func (v *AstBuilder) VisitEnumEntry(ctx *EnumEntryContext) interface{} {
 }
 
 func (v *AstBuilder) VisitFunctionDeclaration(ctx *FunctionDeclarationContext) interface{} {
-	return v.VisitChildren(ctx)
+	// TODO: impl
+	return &Method{}
 }
 
 func (v *AstBuilder) VisitFunctionValueParameters(ctx *FunctionValueParametersContext) interface{} {
@@ -160,7 +277,8 @@ func (v *AstBuilder) VisitCompanionObject(ctx *CompanionObjectContext) interface
 }
 
 func (v *AstBuilder) VisitPropertyDeclaration(ctx *PropertyDeclarationContext) interface{} {
-	return v.VisitChildren(ctx)
+	// TODO: impl
+	return &Property{}
 }
 
 func (v *AstBuilder) VisitMultiVariableDeclaration(ctx *MultiVariableDeclarationContext) interface{} {
@@ -192,7 +310,13 @@ func (v *AstBuilder) VisitTypeParameter(ctx *TypeParameterContext) interface{} {
 }
 
 func (v *AstBuilder) VisitKtype(ctx *KtypeContext) interface{} {
-	return v.VisitChildren(ctx)
+	if f := ctx.TypeReference(); f != nil {
+		name := f.Accept(v).([]string)
+		return &TypeRef{
+			Name: name,
+		}
+	}
+	return nil
 }
 
 func (v *AstBuilder) VisitTypeModifierList(ctx *TypeModifierListContext) interface{} {
@@ -208,7 +332,10 @@ func (v *AstBuilder) VisitNullableType(ctx *NullableTypeContext) interface{} {
 }
 
 func (v *AstBuilder) VisitTypeReference(ctx *TypeReferenceContext) interface{} {
-	return v.VisitChildren(ctx)
+	if ut := ctx.UserType(); ut != nil {
+		return ut.Accept(v).([]string)
+	}
+	return nil
 }
 
 func (v *AstBuilder) VisitFunctionType(ctx *FunctionTypeContext) interface{} {
@@ -220,11 +347,15 @@ func (v *AstBuilder) VisitFunctionTypeReceiver(ctx *FunctionTypeReceiverContext)
 }
 
 func (v *AstBuilder) VisitUserType(ctx *UserTypeContext) interface{} {
-	return v.VisitChildren(ctx)
+	userTypes := make([]string, len(ctx.AllSimpleUserType()))
+	for i, userType := range ctx.AllSimpleUserType() {
+		userTypes[i] = userType.Accept(v).(string)
+	}
+	return userTypes
 }
 
 func (v *AstBuilder) VisitSimpleUserType(ctx *SimpleUserTypeContext) interface{} {
-	return v.VisitChildren(ctx)
+	return ctx.SimpleIdentifier().Accept(v).(string)
 }
 
 func (v *AstBuilder) VisitFunctionTypeParameters(ctx *FunctionTypeParametersContext) interface{} {
@@ -528,7 +659,18 @@ func (v *AstBuilder) VisitMemberAccessOperator(ctx *MemberAccessOperatorContext)
 }
 
 func (v *AstBuilder) VisitModifierList(ctx *ModifierListContext) interface{} {
-	return v.VisitChildren(ctx)
+	modifiers := make([]*Modifier, len(ctx.AllAnnotations()) + len(ctx.AllModifier())
+	if allAnnotations := ctx.AllAnnotations(); allAnnotations != nil {
+		for i, annotation := range allAnnotations {
+			modifiers[i] = annotation.Accept(v).(*Modifier)
+		}
+	}
+	if allModifiers := ctx.AllModifier(); allModifiers != nil {
+		for i, modifier := range allModifiers {
+			modifiers[i] = modifier.Accept(v).(*Modifier)
+		}
+	}
+	return modifiers
 }
 
 func (v *AstBuilder) VisitModifier(ctx *ModifierContext) interface{} {
@@ -596,7 +738,11 @@ func (v *AstBuilder) VisitUnescapedAnnotation(ctx *UnescapedAnnotationContext) i
 }
 
 func (v *AstBuilder) VisitIdentifier(ctx *IdentifierContext) interface{} {
-	return ctx.SimpleIdentifier(0).Accept(v)
+	identifier := make([]string, len(ctx.AllSimpleIdentifier()))
+	for i, ident := range ctx.AllSimpleIdentifier() {
+		identifier[i] = ident.Accept(v).(string)
+	}
+	return identifier
 }
 
 func (v *AstBuilder) VisitSimpleIdentifier(ctx *SimpleIdentifierContext) interface{} {

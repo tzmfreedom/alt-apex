@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/k0kubun/pp"
 	"io/ioutil"
 	"os"
+
+	"github.com/k0kubun/pp"
 
 	"github.com/antlr/antlr4/runtime/Go/antlr"
 	"github.com/tzmfreedom/alt-apex/parser"
