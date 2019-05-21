@@ -263,6 +263,9 @@ type KotlinParserListener interface {
 	// EnterLineStringLiteral is called when entering the lineStringLiteral production.
 	EnterLineStringLiteral(c *LineStringLiteralContext)
 
+	// EnterLineStringPart is called when entering the lineStringPart production.
+	EnterLineStringPart(c *LineStringPartContext)
+
 	// EnterMultiLineStringLiteral is called when entering the multiLineStringLiteral production.
 	EnterMultiLineStringLiteral(c *MultiLineStringLiteralContext)
 
@@ -700,6 +703,9 @@ type KotlinParserListener interface {
 
 	// ExitLineStringLiteral is called when exiting the lineStringLiteral production.
 	ExitLineStringLiteral(c *LineStringLiteralContext)
+
+	// ExitLineStringPart is called when exiting the lineStringPart production.
+	ExitLineStringPart(c *LineStringPartContext)
 
 	// ExitMultiLineStringLiteral is called when exiting the multiLineStringLiteral production.
 	ExitMultiLineStringLiteral(c *MultiLineStringLiteralContext)

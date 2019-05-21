@@ -539,6 +539,12 @@ func (s *BaseKotlinParserListener) EnterLineStringLiteral(ctx *LineStringLiteral
 // ExitLineStringLiteral is called when production lineStringLiteral is exited.
 func (s *BaseKotlinParserListener) ExitLineStringLiteral(ctx *LineStringLiteralContext) {}
 
+// EnterLineStringPart is called when production lineStringPart is entered.
+func (s *BaseKotlinParserListener) EnterLineStringPart(ctx *LineStringPartContext) {}
+
+// ExitLineStringPart is called when production lineStringPart is exited.
+func (s *BaseKotlinParserListener) ExitLineStringPart(ctx *LineStringPartContext) {}
+
 // EnterMultiLineStringLiteral is called when production multiLineStringLiteral is entered.
 func (s *BaseKotlinParserListener) EnterMultiLineStringLiteral(ctx *MultiLineStringLiteralContext) {}
 

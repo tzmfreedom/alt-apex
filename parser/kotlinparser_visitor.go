@@ -263,6 +263,9 @@ type KotlinParserVisitor interface {
 	// Visit a parse tree produced by KotlinParser#lineStringLiteral.
 	VisitLineStringLiteral(ctx *LineStringLiteralContext) interface{}
 
+	// Visit a parse tree produced by KotlinParser#lineStringPart.
+	VisitLineStringPart(ctx *LineStringPartContext) interface{}
+
 	// Visit a parse tree produced by KotlinParser#multiLineStringLiteral.
 	VisitMultiLineStringLiteral(ctx *MultiLineStringLiteralContext) interface{}
 

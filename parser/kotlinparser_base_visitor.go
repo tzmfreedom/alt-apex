@@ -348,6 +348,10 @@ func (v *BaseKotlinParserVisitor) VisitLineStringLiteral(ctx *LineStringLiteralC
 	return v.VisitChildren(ctx)
 }
 
+func (v *BaseKotlinParserVisitor) VisitLineStringPart(ctx *LineStringPartContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
 func (v *BaseKotlinParserVisitor) VisitMultiLineStringLiteral(ctx *MultiLineStringLiteralContext) interface{} {
 	return v.VisitChildren(ctx)
 }

@@ -428,7 +428,12 @@ stringLiteral
     ;
 
 lineStringLiteral
-    : QUOTE_OPEN (lineStringContent | lineStringExpression)* QUOTE_CLOSE
+    : QUOTE_OPEN lineStringPart* QUOTE_CLOSE
+    ;
+
+lineStringPart
+    : lineStringContent
+    | lineStringExpression
     ;
 
 multiLineStringLiteral
