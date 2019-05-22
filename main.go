@@ -15,10 +15,13 @@ import (
 var Version string
 
 func main() {
-	_, err := ParseFile(os.Args[1])
+	node, err := ParseFile(os.Args[1])
+	visitor := &StringVisitor{}
+	str, err := node.Accept(visitor)
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println(str)
 }
 
 func _cli() {
@@ -39,7 +42,7 @@ func _cli() {
 	}
 }
 
-func ParseFile(f string) (interface{}, error) {
+func ParseFile(f string) (parser.Node, error) {
 	bytes, err := ioutil.ReadFile(f)
 	if err != nil {
 		return nil, err
@@ -49,21 +52,19 @@ func ParseFile(f string) (interface{}, error) {
 	return parse(input, f), nil
 }
 
-func ParseString(src string) (interface{}, error) {
+func ParseString(src string) (parser.Node, error) {
 	input := antlr.NewInputStream(src)
 	return parse(input, "<string>"), nil
 }
 
-func parse(input antlr.CharStream, src string) interface{} {
+func parse(input antlr.CharStream, src string) parser.Node {
 	lexer := parser.NewKotlinLexer(input)
 	stream := antlr.NewCommonTokenStream(lexer, 0)
 	p := parser.NewKotlinParser(stream)
 	// p.AddErrorListener(antlr.NewDiagnosticErrorListener(true))
 	p.BuildParseTrees = true
 	tree := p.KotlinFile()
-	t := tree.Accept(&parser.AstBuilder{})
-	pp.Println(t)
-	return t
+	return tree.Accept(&parser.AstBuilder{}).(parser.Node)
 }
 
 func debug(args ...interface{}) {

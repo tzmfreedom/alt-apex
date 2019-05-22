@@ -10,132 +10,6 @@ type AstBuilder struct {
 	*BaseKotlinParserVisitor
 }
 
-type File struct {
-	Header  *Header
-	Classes []*Class
-}
-
-type Header struct {
-	Value []string
-}
-
-type Class struct {
-	Name                  string
-	Properties            map[string]*Property
-	Methods               map[string]*Method
-	PrimaryConstructor    *Constructor
-	SecondalyConstructors []*Constructor
-	Declarations          []Node
-}
-
-type Property struct {
-	Modifiers  []*Modifier
-	TypeRef    *TypeRef
-	Name       string
-	Expression Node
-}
-
-type Constructor struct {
-	Parameters []*Parameter
-	Block      *Block
-}
-
-type Parameter struct {
-	Modifiers  []*Modifier
-	TypeRef    *TypeRef
-	Identifier string
-	Expression Node
-}
-
-type Method struct {
-	AccessModifiers []*Modifier
-	Name            string
-	Statements      Block
-}
-
-type Modifier struct {
-	Name string
-}
-
-type If struct {
-	Condition     Node
-	IfStatement   *Block
-	ElseStatement *Block
-}
-
-type For struct {
-	Expression Node
-	Identifier string
-	Block      *Block
-}
-
-type While struct {
-	Condition Node
-	Block     *Block
-}
-
-type Switch struct {
-	Condition Node
-	Whens     []When
-	Else      *Block
-}
-
-type When struct {
-	Expression Node
-	Block      *Block
-}
-
-type VariableDeclaration struct {
-	Identifier string
-	TypeRef    *TypeRef
-}
-
-var publicModifier = &Modifier{"public"}
-var privateModifier = &Modifier{"private"}
-var protectedModifier = &Modifier{"protected"}
-var globalModifier = &Modifier{"global"}
-
-type Block struct {
-	Statements []Node
-}
-
-type Node interface {
-}
-
-type TypeRef struct {
-	Name []string
-}
-
-type Boolean struct {
-	Value bool
-}
-
-type Integer struct {
-	Value int
-}
-
-type String struct {
-	Value string
-}
-
-type Identifier struct {
-	Value string
-}
-
-type MemberAccess struct {
-	Left Node
-	Right Node
-}
-
-type BinaryOperator struct {
-	Operator string
-	Left Node
-	Right Node
-}
-
-type Name struct {
-	Value []string
-}
 
 func (v *AstBuilder) VisitKotlinFile(ctx *KotlinFileContext) interface{} {
 	preamble := ctx.Preamble().Accept(v)
@@ -251,7 +125,7 @@ func (v *AstBuilder) VisitExplicitDelegation(ctx *ExplicitDelegationContext) int
 func (v *AstBuilder) VisitClassBody(ctx *ClassBodyContext) interface{} {
 	declarations := make([]Node, len(ctx.AllClassMemberDeclaration()))
 	for i, decl := range ctx.AllClassMemberDeclaration() {
-		declarations[i] = decl.Accept(v)
+		declarations[i] = decl.Accept(v).(Node)
 	}
 	return declarations
 }
@@ -320,7 +194,7 @@ func (v *AstBuilder) VisitFunctionValueParameter(ctx *FunctionValueParameterCont
 	parameter := ctx.Parameter().Accept(v).(*Parameter)
 	parameter.Modifiers = modifiers
 	if exp := ctx.Expression(); exp != nil {
-		parameter.Expression = exp.Accept(v)
+		parameter.Expression = exp.Accept(v).(Node)
 	}
 	return parameter
 }
@@ -467,7 +341,7 @@ func (v *AstBuilder) VisitBlock(ctx *BlockContext) interface{} {
 func (v *AstBuilder) VisitStatements(ctx *StatementsContext) interface{} {
 	statements := make([]Node, len(ctx.AllStatement()))
 	for i, stmt := range ctx.AllStatement() {
-		statements[i] = stmt.Accept(v)
+		statements[i] = stmt.Accept(v).(Node)
 	}
 	return statements
 }
@@ -508,7 +382,7 @@ func (v *AstBuilder) VisitExpression(ctx *ExpressionContext) interface{} {
 		return ctx.Disjunction(0).Accept(v)
 	}
 	exp := &BinaryOperator{
-		Right: ctx.Disjunction(0).Accept(v),
+		Right: ctx.Disjunction(0).Accept(v).(Node),
 	}
 	disjunctions := ctx.AllDisjunction()
 	for i, operator := range ctx.AllAssignmentOperator() {
@@ -516,7 +390,7 @@ func (v *AstBuilder) VisitExpression(ctx *ExpressionContext) interface{} {
 		node := &BinaryOperator{}
 		node.Left = exp.Right
 		node.Operator = assignmentOperator
-		node.Right = disjunctions[i+1].Accept(v)
+		node.Right = disjunctions[i+1].Accept(v).(Node)
 		exp.Right = node
 		exp = node
 	}
@@ -578,7 +452,7 @@ func (v *AstBuilder) VisitPrefixUnaryExpression(ctx *PrefixUnaryExpressionContex
 func (v *AstBuilder) VisitPostfixUnaryExpression(ctx *PostfixUnaryExpressionContext) interface{} {
 	var expression Node
 	if e := ctx.AtomicExpression(); e != nil {
-		expression = e.Accept(v)
+		expression = e.Accept(v).(Node)
 	}
 	if len(ctx.AllPostfixUnaryOperation()) == 0 {
 		return expression
@@ -589,7 +463,7 @@ func (v *AstBuilder) VisitPostfixUnaryExpression(ctx *PostfixUnaryExpressionCont
 	operator := ctx.PostfixUnaryOperation(0).Accept(v)
 	return &MemberAccess{
 		Left: expression,
-		Right: operator,
+		Right: operator.(Node),
 	}
 }
 
