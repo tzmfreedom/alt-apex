@@ -26,8 +26,26 @@ func (v *StringVisitor) VisitHeader(n *parser.Header) (interface{}, error) {
 }
 
 func (v *StringVisitor) VisitClass(n *parser.Class) (interface{}, error) {
+	parameterStrings := make([]string, len(n.PrimaryConstructor.Parameters))
+	for i, p := range n.PrimaryConstructor.Parameters {
+		str, err := p.Accept(v)
+		parameterStrings[i] = str.(string)
+		if err != nil {
+			return nil, err
+		}
+	}
+	properties := make([]string, len(n.PrimaryConstructor.Parameters))
+	for i, p := range n.PrimaryConstructor.Parameters {
+		properties[i] = fmt.Sprintf("this.%s = %s;", p.Identifier, p.Identifier)
+	}
+
+	primaryConstructor := fmt.Sprintf(`public %s(%s) {
+%s
+}`, n.Name, strings.Join(parameterStrings, ", "), strings.Join(properties, "\n"))
+
 	return fmt.Sprintf(`class %s {
-}`, n.Name), nil
+%s
+}`, n.Name, primaryConstructor), nil
 }
 
 func (v *StringVisitor) VisitProperty(n *parser.Property) (interface{}, error) {
@@ -35,11 +53,27 @@ func (v *StringVisitor) VisitProperty(n *parser.Property) (interface{}, error) {
 }
 
 func (v *StringVisitor) VisitConstructor(n *parser.Constructor) (interface{}, error) {
-	return nil, nil
+	parameterStrings := make([]string, len(n.Parameters))
+	for i, p := range n.Parameters {
+		str, err := p.Accept(v)
+		parameterStrings[i] = str.(string)
+		if err != nil {
+			return nil, err
+		}
+	}
+	blockStr, err := n.Block.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Sprintf(`%s %s`, strings.Join(parameterStrings, ", "), blockStr), nil
 }
 
 func (v *StringVisitor) VisitParameter(n *parser.Parameter) (interface{}, error) {
-	return nil, nil
+	typeRef, err := n.TypeRef.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Sprintf("%s %s", typeRef, n.Identifier), nil
 }
 
 func (v *StringVisitor) VisitMethod(n *parser.Method) (interface{}, error) {
@@ -71,11 +105,21 @@ func (v *StringVisitor) VisitVariableDeclaration(n *parser.VariableDeclaration) 
 }
 
 func (v *StringVisitor) VisitBlock(n *parser.Block) (interface{}, error) {
-	return nil, nil
+	statements := make([]string, len(n.Statements))
+	for i, stmt := range n.Statements {
+		str, err := stmt.Accept(v)
+		if err != nil {
+			return nil, err
+		}
+		statements[i] = str.(string)
+	}
+	return fmt.Sprintf(`{
+%s
+}`, strings.Join(statements, "\n")), nil
 }
 
 func (v *StringVisitor) VisitTypeRef(n *parser.TypeRef) (interface{}, error) {
-	return nil, nil
+	return strings.Join(n.Name, "."), nil
 }
 
 func (v *StringVisitor) VisitBoolean(n *parser.Boolean) (interface{}, error) {
