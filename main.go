@@ -16,8 +16,16 @@ var Version string
 
 func main() {
 	node, err := ParseFile(os.Args[1])
+	if err != nil {
+		panic(err)
+	}
+	converter := NewTreeConverter()
+	r, err := node.Accept(converter)
+	if err != nil {
+		panic(err)
+	}
 	visitor := &StringVisitor{}
-	str, err := node.Accept(visitor)
+	str, err := r.(parser.Node).Accept(visitor)
 	if err != nil {
 		panic(err)
 	}

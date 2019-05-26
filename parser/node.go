@@ -73,12 +73,12 @@ type While struct {
 
 type Switch struct {
 	Condition Node
-	Whens     []When
+	Whens     []*When
 	Else      *Block
 }
 
 type When struct {
-	Expression Node
+	Conditions []Node
 	Block      *Block
 }
 
@@ -160,6 +160,7 @@ type Visitor interface {
 	VisitBinaryOperator(*BinaryOperator) (interface{}, error)
 	VisitName(*Name) (interface{}, error)
 	VisitMethodInvocation(*MethodInvocation) (interface{}, error)
+	VisitWhile(*While) (interface{}, error)
 }
 func (t *File) Accept(v Visitor) (interface{}, error) {
 	return v.VisitFile(t)
@@ -251,4 +252,8 @@ func (t *Name) Accept(v Visitor) (interface{}, error) {
 
 func (t *MethodInvocation) Accept(v Visitor) (interface{}, error) {
 	return v.VisitMethodInvocation(t)
+}
+
+func (t *While) Accept(v Visitor) (interface{}, error) {
+	return v.VisitWhile(t)
 }

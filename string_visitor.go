@@ -167,15 +167,56 @@ func (v *StringVisitor) VisitIf(n *parser.If) (interface{}, error) {
 }
 
 func (v *StringVisitor) VisitFor(n *parser.For) (interface{}, error) {
-	return nil, nil
+	expression, err := n.Expression.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	block, err := n.Block.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Sprintf(`for (%s : %s) %s`, n.Identifier, expression, block), nil
 }
 
 func (v *StringVisitor) VisitSwitch(n *parser.Switch) (interface{}, error) {
-	return nil, nil
+	expression, err := n.Condition.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	whens := make([]string, len(n.Whens))
+	for i, when := range n.Whens {
+		w, err := when.Accept(v)
+		if err != nil {
+			return nil, err
+		}
+		whens[i] = w.(string)
+	}
+	if n.Else != nil {
+		e, err := n.Else.Accept(v)
+		if err != nil {
+			return nil, err
+		}
+		whens = append(whens, fmt.Sprintf(`else %s`, e.(string)))
+	}
+	return fmt.Sprintf(`switch on %s {
+%s
+}`, expression.(string), strings.Join(whens, "\n")), nil
 }
 
 func (v *StringVisitor) VisitWhen(n *parser.When) (interface{}, error) {
-	return nil, nil
+	conditions := make([]string, len(n.Conditions))
+	for i, condition := range n.Conditions {
+		c, err := condition.Accept(v)
+		if err != nil {
+			return nil, err
+		}
+		conditions[i] = c.(string)
+	}
+	block, err := n.Block.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Sprintf(`when %s %s`, strings.Join(conditions, ", "), block.(string)), nil
 }
 
 func (v *StringVisitor) VisitVariableDeclaration(n *parser.VariableDeclaration) (interface{}, error) {
@@ -191,7 +232,7 @@ func (v *StringVisitor) VisitBlock(n *parser.Block) (interface{}, error) {
 		}
 		statements[i] = str.(string)
 		switch stmt.(type) {
-		case *parser.If:
+		case *parser.If, *parser.For, *parser.While, *parser.Switch:
 		default:
 			statements[i] += ";"
 		}
@@ -270,6 +311,18 @@ func (v *StringVisitor) VisitMethodInvocation(n *parser.MethodInvocation) (inter
 		parameterStrings[i] = parameterString.(string)
 	}
 	return fmt.Sprintf("%s(%s)", exp.(string), strings.Join(parameterStrings, ", ")), nil
+}
+
+func (v *StringVisitor) VisitWhile(n *parser.While) (interface{}, error) {
+	cond, err := n.Condition.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	block, err := n.Block.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Sprintf(`while (%s) %s`, cond.(string), block.(string)), nil
 }
 
 func (v *StringVisitor) modifierString(modifiers []*parser.Modifier) (string, error) {

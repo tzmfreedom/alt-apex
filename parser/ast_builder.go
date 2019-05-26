@@ -283,10 +283,13 @@ func (v *AstBuilder) VisitMultiVariableDeclaration(ctx *MultiVariableDeclaration
 
 func (v *AstBuilder) VisitVariableDeclaration(ctx *VariableDeclarationContext) interface{} {
 	name := ctx.SimpleIdentifier().Accept(v).(string)
-	typeRef := ctx.Ktype().Accept(v).(*TypeRef)
+	var typeRef *TypeRef
+	if t := ctx.Ktype(); t != nil {
+		typeRef = t.Accept(v).(*TypeRef)
+	}
 	return &VariableDeclaration{
 		Identifier: name,
-		TypeRef:    typeRef,
+		TypeRef: typeRef,
 	}
 }
 
@@ -550,6 +553,9 @@ func (v *AstBuilder) VisitAtomicExpression(ctx *AtomicExpressionContext) interfa
 	if exp := ctx.ConditionalExpression(); exp != nil {
 		return exp.Accept(v)
 	}
+	if exp := ctx.LoopExpression(); exp != nil {
+		return exp.Accept(v)
+	}
 	debug(ctx.GetStart().GetColumn())
 	debug(ctx.GetStart().GetLine())
 	panic("not pass")
@@ -737,15 +743,46 @@ func (v *AstBuilder) VisitControlStructureBody(ctx *ControlStructureBodyContext)
 }
 
 func (v *AstBuilder) VisitWhenExpression(ctx *WhenExpressionContext) interface{} {
-	return v.VisitChildren(ctx)
+	condition := ctx.Expression().Accept(v).(Node)
+	sw := &Switch{}
+	whens := []*When{}
+	for _, we := range ctx.AllWhenEntry() {
+		entry := we.Accept(v)
+		switch e := entry.(type) {
+		case *When:
+			whens = append(whens, e)
+		case *Block:
+			sw.Else = e
+		}
+	}
+	sw.Condition = condition
+	sw.Whens = whens
+	return sw
 }
 
 func (v *AstBuilder) VisitWhenEntry(ctx *WhenEntryContext) interface{} {
-	return v.VisitChildren(ctx)
+	if len(ctx.AllWhenCondition()) > 0 {
+		conditions := make([]Node, len(ctx.AllWhenCondition()))
+		for i, c := range ctx.AllWhenCondition() {
+			conditions[i] = c.Accept(v).(Node)
+		}
+		block := ctx.ControlStructureBody().Accept(v).(*Block)
+		return &When{
+			Conditions: conditions,
+			Block: block,
+		}
+	}
+	return ctx.ControlStructureBody().Accept(v)
 }
 
 func (v *AstBuilder) VisitWhenCondition(ctx *WhenConditionContext) interface{} {
-	return v.VisitChildren(ctx)
+	if exp := ctx.Expression(); exp != nil {
+		return exp.Accept(v)
+	}
+	if exp := ctx.RangeTest(); exp != nil {
+		return exp.Accept(v)
+	}
+	return ctx.TypeTest().Accept(v)
 }
 
 func (v *AstBuilder) VisitRangeTest(ctx *RangeTestContext) interface{} {
@@ -769,15 +806,34 @@ func (v *AstBuilder) VisitFinallyBlock(ctx *FinallyBlockContext) interface{} {
 }
 
 func (v *AstBuilder) VisitLoopExpression(ctx *LoopExpressionContext) interface{} {
-	return v.VisitChildren(ctx)
+	if f := ctx.ForExpression(); f != nil {
+		return f.Accept(v)
+	}
+	if w := ctx.WhileExpression(); w != nil {
+		return w.Accept(v)
+	}
+	return ctx.DoWhileExpression().Accept(v)
 }
 
 func (v *AstBuilder) VisitForExpression(ctx *ForExpressionContext) interface{} {
-	return v.VisitChildren(ctx)
+	expression := ctx.Expression().Accept(v)
+	decl := ctx.VariableDeclaration().Accept(v)
+	identifier := decl.(*VariableDeclaration).Identifier
+	block := ctx.ControlStructureBody().Accept(v).(*Block)
+	return &For{
+		Identifier: identifier,
+		Expression: expression.(Node),
+		Block: block,
+	}
 }
 
 func (v *AstBuilder) VisitWhileExpression(ctx *WhileExpressionContext) interface{} {
-	return v.VisitChildren(ctx)
+	cond := ctx.Expression().Accept(v).(Node)
+	block := ctx.ControlStructureBody().Accept(v).(*Block)
+	return &While{
+		Condition: cond,
+		Block: block,
+	}
 }
 
 func (v *AstBuilder) VisitDoWhileExpression(ctx *DoWhileExpressionContext) interface{} {
