@@ -136,6 +136,11 @@ type Name struct {
 	Value []string
 }
 
+type Lambda struct {
+	Parameters []*Parameter
+	Statements []Node
+}
+
 type Visitor interface {
 	VisitFile(*File) (interface{}, error)
 	VisitHeader(*Header) (interface{}, error)
@@ -161,6 +166,7 @@ type Visitor interface {
 	VisitName(*Name) (interface{}, error)
 	VisitMethodInvocation(*MethodInvocation) (interface{}, error)
 	VisitWhile(*While) (interface{}, error)
+	VisitLambda(*Lambda) (interface{}, error)
 }
 func (t *File) Accept(v Visitor) (interface{}, error) {
 	return v.VisitFile(t)
@@ -256,4 +262,8 @@ func (t *MethodInvocation) Accept(v Visitor) (interface{}, error) {
 
 func (t *While) Accept(v Visitor) (interface{}, error) {
 	return v.VisitWhile(t)
+}
+
+func (t *Lambda) Accept(v Visitor) (interface{}, error) {
+	return v.VisitLambda(t)
 }

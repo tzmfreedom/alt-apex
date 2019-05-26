@@ -256,3 +256,7 @@ func (v *TreeConverter) VisitWhile(n *parser.While) (interface{}, error) {
 	n.Block = block.(*parser.Block)
 	return n, nil
 }
+
+func (v *TreeConverter) VisitLambda(n *parser.Lambda) (interface{}, error) {
+	return n, nil
+}

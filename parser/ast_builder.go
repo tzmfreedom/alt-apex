@@ -556,6 +556,9 @@ func (v *AstBuilder) VisitAtomicExpression(ctx *AtomicExpressionContext) interfa
 	if exp := ctx.LoopExpression(); exp != nil {
 		return exp.Accept(v)
 	}
+	if exp := ctx.FunctionLiteral(); exp != nil {
+		return exp.Accept(v)
+	}
 	debug(ctx.GetStart().GetColumn())
 	debug(ctx.GetStart().GetLine())
 	panic("not pass")
@@ -683,15 +686,34 @@ func (v *AstBuilder) VisitMultiLineStringExpression(ctx *MultiLineStringExpressi
 }
 
 func (v *AstBuilder) VisitFunctionLiteral(ctx *FunctionLiteralContext) interface{} {
-	return v.VisitChildren(ctx)
+	stmts := ctx.Statements().Accept(v).([]Node)
+	var parameters []*Parameter
+	if p := ctx.LambdaParameters(); p != nil {
+		parameters = p.Accept(v).([]*Parameter)
+	}
+	return &Lambda{
+		Parameters: parameters,
+		Statements: stmts,
+	}
 }
 
 func (v *AstBuilder) VisitLambdaParameters(ctx *LambdaParametersContext) interface{} {
-	return v.VisitChildren(ctx)
+	parameters := make([]*Parameter, len(ctx.AllLambdaParameter()))
+	for i, p := range ctx.AllLambdaParameter() {
+		parameters[i] = p.Accept(v).(*Parameter)
+	}
+	return parameters
 }
 
 func (v *AstBuilder) VisitLambdaParameter(ctx *LambdaParameterContext) interface{} {
-	return v.VisitChildren(ctx)
+	if decl := ctx.VariableDeclaration(); decl != nil {
+		declaration := decl.Accept(v).(*VariableDeclaration)
+		return &Parameter{
+			Identifier: declaration.Identifier,
+			TypeRef: declaration.TypeRef,
+		}
+	}
+	panic("not impl")
 }
 
 func (v *AstBuilder) VisitObjectLiteral(ctx *ObjectLiteralContext) interface{} {

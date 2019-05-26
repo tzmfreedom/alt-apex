@@ -24,8 +24,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	visitor := &StringVisitor{}
-	str, err := r.(parser.Node).Accept(visitor)
+	node = r.(parser.Node)
+	checker := NewLambdaChecker()
+	node.Accept(checker)
+	visitor := &StringVisitor{
+		Lambdas: checker.Lambdas,
+	}
+	str, err := node.Accept(visitor)
 	if err != nil {
 		panic(err)
 	}

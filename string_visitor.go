@@ -13,6 +13,7 @@ var typeMapper = map[string]string{
 
 type StringVisitor struct {
 	NameSpace string
+	Lambdas []*parser.Lambda
 }
 
 func (v *StringVisitor) VisitFile(n *parser.File) (interface{}, error) {
@@ -71,13 +72,33 @@ func (v *StringVisitor) VisitClass(n *parser.Class) (interface{}, error) {
 		declarations[i] = str.(string)
 	}
 
+	lambdas := make([]string, len(v.Lambdas))
+	for i, l := range v.Lambdas {
+		lambda, err := v.createLambdaMethod(fmt.Sprintf("lambda_%d", i), l)
+		if err != nil {
+			return nil, err
+		}
+		lambdas = append(lambdas, lambda)
+	}
+
 	return fmt.Sprintf(`%s class %s_%s {
 %s
 %s
-}`, modifierString, v.NameSpace, n.Name, primaryConstructor, strings.Join(declarations, "\n")), nil
+%s
+}`,
+		modifierString,
+		v.NameSpace,
+		n.Name,
+		primaryConstructor,
+		strings.Join(declarations, "\n"),
+		strings.Join(lambdas, "\n"),
+	), nil
 }
 
 func (v *StringVisitor) VisitProperty(n *parser.Property) (interface{}, error) {
+	if _, ok := n.Expression.(*parser.Lambda); ok {
+		return "", nil
+	}
 	typeRef, err := n.TypeRef.Accept(v)
 	if err != nil {
 		return nil, err
@@ -224,22 +245,13 @@ func (v *StringVisitor) VisitVariableDeclaration(n *parser.VariableDeclaration) 
 }
 
 func (v *StringVisitor) VisitBlock(n *parser.Block) (interface{}, error) {
-	statements := make([]string, len(n.Statements))
-	for i, stmt := range n.Statements {
-		str, err := stmt.Accept(v)
-		if err != nil {
-			return nil, err
-		}
-		statements[i] = str.(string)
-		switch stmt.(type) {
-		case *parser.If, *parser.For, *parser.While, *parser.Switch:
-		default:
-			statements[i] += ";"
-		}
+	block, err := v.createStatementsString(n.Statements)
+	if err != nil {
+		return nil, err
 	}
 	return fmt.Sprintf(`{
 %s
-}`, strings.Join(statements, "\n")), nil
+}`, block), nil
 }
 
 func (v *StringVisitor) VisitTypeRef(n *parser.TypeRef) (interface{}, error) {
@@ -335,4 +347,55 @@ func (v *StringVisitor) modifierString(modifiers []*parser.Modifier) (string, er
 		modifierStrings[i] = modifierString.(string)
 	}
 	return strings.Join(modifierStrings, " "), nil
+}
+
+func (v *StringVisitor) VisitLambda(n *parser.Lambda) (interface{}, error) {
+	return nil, nil
+}
+
+func (v *StringVisitor) createLambdaMethod(name string, n *parser.Lambda) (string, error) {
+	parameters := make([]string, len(n.Parameters))
+	for i, p := range n.Parameters {
+		parameter, err := p.Accept(v)
+		if err != nil {
+			return "", err
+		}
+		parameters[i] = parameter.(string)
+	}
+	statements := make([]string, len(n.Statements))
+	for i, s := range n.Statements {
+		stmt, err := s.Accept(v)
+		if err != nil {
+			return "", err
+		}
+		statements[i] = stmt.(string)
+	}
+	block, err := v.createStatementsString(n.Statements)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(`public %s(%s) {
+%s
+}`,
+		name,
+		strings.Join(parameters, ", "),
+		block,
+	), nil
+}
+
+func (v *StringVisitor) createStatementsString(statements []parser.Node) (string, error) {
+	statementStrings := make([]string, len(statements))
+	for i, stmt := range statements {
+		str, err := stmt.Accept(v)
+		if err != nil {
+			return "", err
+		}
+		statementStrings[i] = str.(string)
+		switch stmt.(type) {
+		case *parser.If, *parser.For, *parser.While, *parser.Switch:
+		default:
+			statementStrings[i] += ";"
+		}
+	}
+	return strings.Join(statementStrings, "\n"), nil
 }
