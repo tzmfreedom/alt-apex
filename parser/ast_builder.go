@@ -59,6 +59,12 @@ func (v *AstBuilder) VisitTopLevelObject(ctx *TopLevelObjectContext) interface{}
 }
 
 func (v *AstBuilder) VisitClassDeclaration(ctx *ClassDeclarationContext) interface{} {
+	var modifiers []*Modifier
+	if m := ctx.ModifierList(); m != nil {
+		modifiers = m.Accept(v).([]*Modifier)
+	} else {
+		modifiers = []*Modifier{publicModifier}
+	}
 	name := ctx.SimpleIdentifier().Accept(v).(string)
 	declarations := ctx.ClassBody().Accept(v).([]Node)
 	var constructor *Constructor
@@ -72,6 +78,7 @@ func (v *AstBuilder) VisitClassDeclaration(ctx *ClassDeclarationContext) interfa
 		}
 	}
 	return &Class{
+		Modifiers: modifiers,
 		Name:               name,
 		PrimaryConstructor: constructor,
 		Declarations:       declarations,
@@ -185,7 +192,7 @@ func (v *AstBuilder) VisitFunctionDeclaration(ctx *FunctionDeclarationContext) i
 	if m := ctx.ModifierList(); m != nil {
 		modifiers = ctx.ModifierList().Accept(v).([]*Modifier)
 	} else {
-		modifiers = []*Modifier{}
+		modifiers = []*Modifier{publicModifier}
 	}
 	identifier := ctx.Identifier().Accept(v).([]string)
 	parameters := ctx.FunctionValueParameters().Accept(v).([]*Parameter)
@@ -253,7 +260,7 @@ func (v *AstBuilder) VisitPropertyDeclaration(ctx *PropertyDeclarationContext) i
 	if m := ctx.ModifierList(); m != nil {
 		modifiers = ctx.ModifierList().Accept(v).([]*Modifier)
 	} else {
-		modifiers = []*Modifier{}
+		modifiers = []*Modifier{publicModifier}
 	}
 	//ktype := ctx.Ktype().Accept(v).(*TypeRef)
 	var varDecl *VariableDeclaration
@@ -441,7 +448,23 @@ func (v *AstBuilder) VisitConjunction(ctx *ConjunctionContext) interface{} {
 
 func (v *AstBuilder) VisitEqualityComparison(ctx *EqualityComparisonContext) interface{} {
 	// TODO: impl
-	return ctx.Comparison(0).Accept(v)
+	if len(ctx.AllComparison()) == 1 {
+		return ctx.Comparison(0).Accept(v)
+	}
+	exp := &BinaryOperator{
+		Right: ctx.Comparison(0).Accept(v).(Node),
+	}
+	comparisons := ctx.AllComparison()
+	for i, operator := range ctx.AllEqualityOperation() {
+		assignmentOperator := operator.Accept(v).(string)
+		node := &BinaryOperator{}
+		node.Left = exp.Right
+		node.Operator = assignmentOperator
+		node.Right = comparisons[i+1].Accept(v).(Node)
+		exp.Right = node
+		exp = node
+	}
+	return exp
 }
 
 func (v *AstBuilder) VisitComparison(ctx *ComparisonContext) interface{} {
@@ -494,6 +517,12 @@ func (v *AstBuilder) VisitPostfixUnaryExpression(ctx *PostfixUnaryExpressionCont
 	}
 	operator := ctx.PostfixUnaryOperation(0).Accept(v)
 	if invoke, ok := operator.(*MethodInvocation); ok {
+		if invoke.Expression != nil {
+			expression = &MemberAccess{
+				Left: expression,
+				Right: invoke.Expression,
+			}
+		}
 		invoke.Expression = expression
 		return invoke
 	}
@@ -768,11 +797,11 @@ func (v *AstBuilder) VisitAssignmentOperator(ctx *AssignmentOperatorContext) int
 }
 
 func (v *AstBuilder) VisitEqualityOperation(ctx *EqualityOperationContext) interface{} {
-	return v.VisitChildren(ctx)
+	return ctx.GetText()
 }
 
 func (v *AstBuilder) VisitComparisonOperator(ctx *ComparisonOperatorContext) interface{} {
-	return v.VisitChildren(ctx)
+	return ctx.GetText()
 }
 
 func (v *AstBuilder) VisitInOperator(ctx *InOperatorContext) interface{} {

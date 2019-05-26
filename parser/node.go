@@ -14,6 +14,7 @@ type Header struct {
 }
 
 type Class struct {
+	Modifiers []*Modifier
 	Name                  string
 	Properties            map[string]*Property
 	Methods               map[string]*Method

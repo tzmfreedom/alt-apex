@@ -7,6 +7,10 @@ import (
 	"strings"
 )
 
+var typeMapper = map[string]string{
+	"int": "Integer",
+}
+
 type StringVisitor struct {}
 
 func (v *StringVisitor) VisitFile(n *parser.File) (interface{}, error) {
@@ -27,6 +31,10 @@ func (v *StringVisitor) VisitHeader(n *parser.Header) (interface{}, error) {
 }
 
 func (v *StringVisitor) VisitClass(n *parser.Class) (interface{}, error) {
+	modifierString, err := v.modifierString(n.Modifiers)
+	if err != nil {
+		return nil, err
+	}
 	parameterStrings := make([]string, len(n.PrimaryConstructor.Parameters))
 	for i, p := range n.PrimaryConstructor.Parameters {
 		str, err := p.Accept(v)
@@ -46,7 +54,6 @@ func (v *StringVisitor) VisitClass(n *parser.Class) (interface{}, error) {
 
 	declarations := make([]string, len(n.Declarations))
 	for i, decl := range n.Declarations {
-		debug(decl)
 		str, err := decl.Accept(v)
 		if err != nil {
 			return nil, err
@@ -54,10 +61,10 @@ func (v *StringVisitor) VisitClass(n *parser.Class) (interface{}, error) {
 		declarations[i] = str.(string)
 	}
 
-	return fmt.Sprintf(`class %s {
+	return fmt.Sprintf(`%s class %s {
 %s
 %s
-}`, n.Name, primaryConstructor, strings.Join(declarations, "\n")), nil
+}`, modifierString, n.Name, primaryConstructor, strings.Join(declarations, "\n")), nil
 }
 
 func (v *StringVisitor) VisitProperty(n *parser.Property) (interface{}, error) {
@@ -65,7 +72,15 @@ func (v *StringVisitor) VisitProperty(n *parser.Property) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	return fmt.Sprintf(`%s %s { get; set; }`, typeRef.(string), n.Name), nil
+	expression := ""
+	if n.Expression != nil {
+		e, err := n.Expression.Accept(v)
+		if err != nil {
+			return nil, err
+		}
+		expression = " = " + e.(string)
+	}
+	return fmt.Sprintf(`%s %s%s`, typeRef.(string), n.Name, expression), nil
 }
 
 func (v *StringVisitor) VisitConstructor(n *parser.Constructor) (interface{}, error) {
@@ -93,6 +108,10 @@ func (v *StringVisitor) VisitParameter(n *parser.Parameter) (interface{}, error)
 }
 
 func (v *StringVisitor) VisitMethod(n *parser.Method) (interface{}, error) {
+	modifierString, err := v.modifierString(n.AccessModifiers)
+	if err != nil {
+		return nil, err
+	}
 	parameterStrings := make([]string, len(n.Parameters))
 	for i, p := range n.Parameters {
 		str, err := p.Accept(v)
@@ -105,15 +124,16 @@ func (v *StringVisitor) VisitMethod(n *parser.Method) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	return fmt.Sprintf("%s(%s) %s",
+	return fmt.Sprintf("%s %s(%s) %s",
+		modifierString,
 		strings.Join(n.Identifier, "."),
-		parameterStrings,
+		strings.Join(parameterStrings, ", "),
 		blockStr,
 	), nil
 }
 
 func (v *StringVisitor) VisitModifier(n *parser.Modifier) (interface{}, error) {
-	return nil, nil
+	return n.Name, nil
 }
 
 func (v *StringVisitor) VisitIf(n *parser.If) (interface{}, error) {
@@ -159,9 +179,12 @@ func (v *StringVisitor) VisitBlock(n *parser.Block) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		debug(stmt)
-		debug(str)
 		statements[i] = str.(string)
+		switch stmt.(type) {
+		case *parser.If:
+		default:
+			statements[i] += ";"
+		}
 	}
 	return fmt.Sprintf(`{
 %s
@@ -169,7 +192,11 @@ func (v *StringVisitor) VisitBlock(n *parser.Block) (interface{}, error) {
 }
 
 func (v *StringVisitor) VisitTypeRef(n *parser.TypeRef) (interface{}, error) {
-	return strings.Join(n.Name, "."), nil
+	name := strings.ToLower(strings.Join(n.Name, "."))
+	if mapped, ok := typeMapper[name]; ok {
+		return mapped, nil
+	}
+	return name, nil
 }
 
 func (v *StringVisitor) VisitBoolean(n *parser.Boolean) (interface{}, error) {
@@ -233,4 +260,16 @@ func (v *StringVisitor) VisitMethodInvocation(n *parser.MethodInvocation) (inter
 		parameterStrings[i] = parameterString.(string)
 	}
 	return fmt.Sprintf("%s(%s)", exp.(string), strings.Join(parameterStrings, ", ")), nil
+}
+
+func (v *StringVisitor) modifierString(modifiers []*parser.Modifier) (string, error) {
+	modifierStrings := make([]string, len(modifiers))
+	for i, accessModifier := range modifiers {
+		modifierString, err := accessModifier.Accept(v)
+		if err != nil {
+			return "", err
+		}
+		modifierStrings[i] = modifierString.(string)
+	}
+	return strings.Join(modifierStrings, " "), nil
 }
