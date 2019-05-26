@@ -11,10 +11,16 @@ var typeMapper = map[string]string{
 	"int": "Integer",
 }
 
-type StringVisitor struct {}
+type StringVisitor struct {
+	NameSpace string
+}
 
 func (v *StringVisitor) VisitFile(n *parser.File) (interface{}, error) {
-	n.Header.Accept(v)
+	namespace, err := n.Header.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	v.NameSpace = namespace.(string)
 	stringArray := []string{}
 	for _, class := range n.Classes {
 		part, err := class.Accept(v)
@@ -27,7 +33,11 @@ func (v *StringVisitor) VisitFile(n *parser.File) (interface{}, error) {
 }
 
 func (v *StringVisitor) VisitHeader(n *parser.Header) (interface{}, error) {
-	return nil, nil
+	namespaces := make([]string, len(n.Value))
+	for i, val := range n.Value {
+		namespaces[i] = strings.ToUpper(string(val[0])) + strings.ToLower(val[1:])
+	}
+	return strings.Join(namespaces, "_"), nil
 }
 
 func (v *StringVisitor) VisitClass(n *parser.Class) (interface{}, error) {
@@ -61,10 +71,10 @@ func (v *StringVisitor) VisitClass(n *parser.Class) (interface{}, error) {
 		declarations[i] = str.(string)
 	}
 
-	return fmt.Sprintf(`%s class %s {
+	return fmt.Sprintf(`%s class %s_%s {
 %s
 %s
-}`, modifierString, n.Name, primaryConstructor, strings.Join(declarations, "\n")), nil
+}`, modifierString, v.NameSpace, n.Name, primaryConstructor, strings.Join(declarations, "\n")), nil
 }
 
 func (v *StringVisitor) VisitProperty(n *parser.Property) (interface{}, error) {
