@@ -65,6 +65,12 @@ func (v *AstBuilder) VisitClassDeclaration(ctx *ClassDeclarationContext) interfa
 	if c := ctx.PrimaryConstructor(); c != nil {
 		constructor = c.Accept(v).(*Constructor)
 	}
+	for _, decl := range declarations {
+		switch d := decl.(type) {
+		case *Constructor:
+			d.Name = name
+		}
+	}
 	return &Class{
 		Name:               name,
 		PrimaryConstructor: constructor,
@@ -175,7 +181,21 @@ func (v *AstBuilder) VisitEnumEntry(ctx *EnumEntryContext) interface{} {
 
 func (v *AstBuilder) VisitFunctionDeclaration(ctx *FunctionDeclarationContext) interface{} {
 	// TODO: impl
-	return &Method{}
+	var modifiers []*Modifier
+	if m := ctx.ModifierList(); m != nil {
+		modifiers = ctx.ModifierList().Accept(v).([]*Modifier)
+	} else {
+		modifiers = []*Modifier{}
+	}
+	identifier := ctx.Identifier().Accept(v).([]string)
+	parameters := ctx.FunctionValueParameters().Accept(v).([]*Parameter)
+	block := ctx.FunctionBody().Accept(v).(*Block)
+	return &Method{
+		AccessModifiers: modifiers,
+		Identifier: identifier,
+		Parameters: parameters,
+		Statements: block,
+	}
 }
 
 func (v *AstBuilder) VisitFunctionValueParameters(ctx *FunctionValueParametersContext) interface{} {
@@ -209,7 +229,14 @@ func (v *AstBuilder) VisitParameter(ctx *ParameterContext) interface{} {
 }
 
 func (v *AstBuilder) VisitFunctionBody(ctx *FunctionBodyContext) interface{} {
-	return v.VisitChildren(ctx)
+	if b := ctx.Block(); b != nil {
+		return b.Accept(v)
+	}
+	return &Block{
+		Statements: []Node{
+			ctx.Expression().Accept(v).(Node),
+		},
+	}
 }
 
 func (v *AstBuilder) VisitObjectDeclaration(ctx *ObjectDeclarationContext) interface{} {
@@ -222,7 +249,12 @@ func (v *AstBuilder) VisitCompanionObject(ctx *CompanionObjectContext) interface
 
 func (v *AstBuilder) VisitPropertyDeclaration(ctx *PropertyDeclarationContext) interface{} {
 	// TODO: impl
-	modifiers := ctx.ModifierList().Accept(v).([]*Modifier)
+	var modifiers []*Modifier
+	if m := ctx.ModifierList(); m != nil {
+		modifiers = ctx.ModifierList().Accept(v).([]*Modifier)
+	} else {
+		modifiers = []*Modifier{}
+	}
 	//ktype := ctx.Ktype().Accept(v).(*TypeRef)
 	var varDecl *VariableDeclaration
 	if decl := ctx.VariableDeclaration(); decl != nil {
@@ -461,6 +493,10 @@ func (v *AstBuilder) VisitPostfixUnaryExpression(ctx *PostfixUnaryExpressionCont
 		panic("not pass")
 	}
 	operator := ctx.PostfixUnaryOperation(0).Accept(v)
+	if invoke, ok := operator.(*MethodInvocation); ok {
+		invoke.Expression = expression
+		return invoke
+	}
 	return &MemberAccess{
 		Left: expression,
 		Right: operator.(Node),
@@ -482,6 +518,9 @@ func (v *AstBuilder) VisitAtomicExpression(ctx *AtomicExpressionContext) interfa
 			Value: exp.GetText(),
 		}
 	}
+	if exp := ctx.ConditionalExpression(); exp != nil {
+		return exp.Accept(v)
+	}
 	debug(ctx.GetStart().GetColumn())
 	debug(ctx.GetStart().GetLine())
 	panic("not pass")
@@ -492,7 +531,13 @@ func (v *AstBuilder) VisitParenthesizedExpression(ctx *ParenthesizedExpressionCo
 }
 
 func (v *AstBuilder) VisitCallSuffix(ctx *CallSuffixContext) interface{} {
-	return v.VisitChildren(ctx)
+	if args := ctx.TypeArguments(); args != nil {
+		args.Accept(v)
+	}
+	if vArgs := ctx.ValueArguments(); vArgs != nil {
+		return vArgs.Accept(v)
+	}
+	panic("not impl")
 }
 
 func (v *AstBuilder) VisitAnnotatedLambda(ctx *AnnotatedLambdaContext) interface{} {
@@ -504,7 +549,11 @@ func (v *AstBuilder) VisitArrayAccess(ctx *ArrayAccessContext) interface{} {
 }
 
 func (v *AstBuilder) VisitValueArguments(ctx *ValueArgumentsContext) interface{} {
-	return v.VisitChildren(ctx)
+	args := make([]Node, len(ctx.AllValueArgument()))
+	for i, arg := range ctx.AllValueArgument() {
+		args[i] = arg.Accept(v).(Node)
+	}
+	return args
 }
 
 func (v *AstBuilder) VisitTypeArguments(ctx *TypeArgumentsContext) interface{} {
@@ -520,7 +569,10 @@ func (v *AstBuilder) VisitTypeProjectionModifierList(ctx *TypeProjectionModifier
 }
 
 func (v *AstBuilder) VisitValueArgument(ctx *ValueArgumentContext) interface{} {
-	return v.VisitChildren(ctx)
+	if ident := ctx.SimpleIdentifier(); ident != nil {
+		panic("not impl")
+	}
+	return ctx.Expression().Accept(v)
 }
 
 func (v *AstBuilder) VisitLiteralConstant(ctx *LiteralConstantContext) interface{} {
@@ -560,7 +612,9 @@ func (v *AstBuilder) VisitLineStringLiteral(ctx *LineStringLiteralContext) inter
 	for i, p := range ctx.AllLineStringPart() {
 		parts[i] = p.GetText()
 	}
-	return strings.Join(parts, "")
+	return &String{
+		Value: strings.Join(parts, ""),
+	}
 }
 
 func (v *AstBuilder) VisitLineStringPart(ctx *LineStringPartContext) interface{} {
@@ -622,15 +676,35 @@ func (v *AstBuilder) VisitSuperExpression(ctx *SuperExpressionContext) interface
 }
 
 func (v *AstBuilder) VisitConditionalExpression(ctx *ConditionalExpressionContext) interface{} {
-	return v.VisitChildren(ctx)
+	if exp := ctx.IfExpression(); exp != nil {
+		return exp.Accept(v)
+	}
+	return ctx.WhenExpression().Accept(v)
 }
 
 func (v *AstBuilder) VisitIfExpression(ctx *IfExpressionContext) interface{} {
-	return v.VisitChildren(ctx)
+	cond := ctx.Expression().Accept(v).(Node)
+	ifStmt := ctx.ControlStructureBody(0).Accept(v).(*Block)
+	var elseStmt *Block
+	if ctx.ELSE() != nil {
+		elseStmt = ctx.ControlStructureBody(1).Accept(v).(*Block)
+	}
+	return &If{
+		Condition: cond,
+		IfStatement: ifStmt,
+		ElseStatement: elseStmt,
+	}
 }
 
 func (v *AstBuilder) VisitControlStructureBody(ctx *ControlStructureBodyContext) interface{} {
-	return v.VisitChildren(ctx)
+	if b := ctx.Block(); b != nil {
+		return b.Accept(v)
+	}
+	return &Block{
+		Statements: []Node{
+			ctx.Expression().Accept(v).(Node),
+		},
+	}
 }
 
 func (v *AstBuilder) VisitWhenExpression(ctx *WhenExpressionContext) interface{} {
@@ -730,6 +804,11 @@ func (v *AstBuilder) VisitPostfixUnaryOperation(ctx *PostfixUnaryOperationContex
 		accessOperator.Accept(v)
 		node := ctx.PostfixUnaryExpression().Accept(v)
 		return node
+	}
+	if callSuffix := ctx.CallSuffix(); callSuffix != nil {
+		return &MethodInvocation{
+			Parameters: callSuffix.Accept(v).([]Node),
+		}
 	}
 	return v.VisitChildren(ctx)
 }

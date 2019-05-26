@@ -30,6 +30,7 @@ type Property struct {
 }
 
 type Constructor struct {
+	Name string
 	Parameters []*Parameter
 	Block      *Block
 }
@@ -43,8 +44,9 @@ type Parameter struct {
 
 type Method struct {
 	AccessModifiers []*Modifier
-	Name            string
-	Statements      Block
+	Identifier []string
+	Parameters []*Parameter
+	Statements      *Block
 }
 
 type Modifier struct {
@@ -124,6 +126,11 @@ type BinaryOperator struct {
 	Right Node
 }
 
+type MethodInvocation struct {
+	Expression Node
+	Parameters []Node
+}
+
 type Name struct {
 	Value []string
 }
@@ -151,6 +158,7 @@ type Visitor interface {
 	VisitMemberAccess(*MemberAccess) (interface{}, error)
 	VisitBinaryOperator(*BinaryOperator) (interface{}, error)
 	VisitName(*Name) (interface{}, error)
+	VisitMethodInvocation(*MethodInvocation) (interface{}, error)
 }
 func (t *File) Accept(v Visitor) (interface{}, error) {
 	return v.VisitFile(t)
@@ -238,4 +246,8 @@ func (t *BinaryOperator) Accept(v Visitor) (interface{}, error) {
 
 func (t *Name) Accept(v Visitor) (interface{}, error) {
 	return v.VisitName(t)
+}
+
+func (t *MethodInvocation) Accept(v Visitor) (interface{}, error) {
+	return v.VisitMethodInvocation(t)
 }

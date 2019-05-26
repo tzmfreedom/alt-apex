@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/tzmfreedom/alt-apex/parser"
+	"strconv"
 	"strings"
 )
 
@@ -43,13 +44,28 @@ func (v *StringVisitor) VisitClass(n *parser.Class) (interface{}, error) {
 %s
 }`, n.Name, strings.Join(parameterStrings, ", "), strings.Join(properties, "\n"))
 
+	declarations := make([]string, len(n.Declarations))
+	for i, decl := range n.Declarations {
+		debug(decl)
+		str, err := decl.Accept(v)
+		if err != nil {
+			return nil, err
+		}
+		declarations[i] = str.(string)
+	}
+
 	return fmt.Sprintf(`class %s {
 %s
-}`, n.Name, primaryConstructor), nil
+%s
+}`, n.Name, primaryConstructor, strings.Join(declarations, "\n")), nil
 }
 
 func (v *StringVisitor) VisitProperty(n *parser.Property) (interface{}, error) {
-	return nil, nil
+	typeRef, err := n.TypeRef.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Sprintf(`%s %s { get; set; }`, typeRef.(string), n.Name), nil
 }
 
 func (v *StringVisitor) VisitConstructor(n *parser.Constructor) (interface{}, error) {
@@ -65,7 +81,7 @@ func (v *StringVisitor) VisitConstructor(n *parser.Constructor) (interface{}, er
 	if err != nil {
 		return nil, err
 	}
-	return fmt.Sprintf(`%s %s`, strings.Join(parameterStrings, ", "), blockStr), nil
+	return fmt.Sprintf(`public %s(%s) %s`, n.Name, strings.Join(parameterStrings, ", "), blockStr), nil
 }
 
 func (v *StringVisitor) VisitParameter(n *parser.Parameter) (interface{}, error) {
@@ -77,7 +93,23 @@ func (v *StringVisitor) VisitParameter(n *parser.Parameter) (interface{}, error)
 }
 
 func (v *StringVisitor) VisitMethod(n *parser.Method) (interface{}, error) {
-	return nil, nil
+	parameterStrings := make([]string, len(n.Parameters))
+	for i, p := range n.Parameters {
+		str, err := p.Accept(v)
+		parameterStrings[i] = str.(string)
+		if err != nil {
+			return nil, err
+		}
+	}
+	blockStr, err := n.Statements.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Sprintf("%s(%s) %s",
+		strings.Join(n.Identifier, "."),
+		parameterStrings,
+		blockStr,
+	), nil
 }
 
 func (v *StringVisitor) VisitModifier(n *parser.Modifier) (interface{}, error) {
@@ -85,7 +117,23 @@ func (v *StringVisitor) VisitModifier(n *parser.Modifier) (interface{}, error) {
 }
 
 func (v *StringVisitor) VisitIf(n *parser.If) (interface{}, error) {
-	return nil, nil
+	cond, err := n.Condition.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	ifStmt, err := n.IfStatement.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	elseStmt := ""
+	if n.ElseStatement != nil {
+		e, err := n.ElseStatement.Accept(v)
+		if err != nil {
+			return nil, err
+		}
+		elseStmt = " else " + e.(string)
+	}
+	return fmt.Sprintf(`if (%s) %s%s`, cond.(string), ifStmt.(string), elseStmt), nil
 }
 
 func (v *StringVisitor) VisitFor(n *parser.For) (interface{}, error) {
@@ -111,6 +159,8 @@ func (v *StringVisitor) VisitBlock(n *parser.Block) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
+		debug(stmt)
+		debug(str)
 		statements[i] = str.(string)
 	}
 	return fmt.Sprintf(`{
@@ -123,30 +173,64 @@ func (v *StringVisitor) VisitTypeRef(n *parser.TypeRef) (interface{}, error) {
 }
 
 func (v *StringVisitor) VisitBoolean(n *parser.Boolean) (interface{}, error) {
-	return nil, nil
+	if n.Value  {
+		return "true", nil
+	}
+	return "false", nil
 }
 
 func (v *StringVisitor) VisitInteger(n *parser.Integer) (interface{}, error) {
-	return nil, nil
+	return strconv.Itoa(n.Value), nil
 }
 
 func (v *StringVisitor) VisitString(n *parser.String) (interface{}, error) {
-	return nil, nil
+	return fmt.Sprintf("'%s'", n.Value), nil
 }
 
 func (v *StringVisitor) VisitIdentifier(n *parser.Identifier) (interface{}, error) {
-	return nil, nil
+	return n.Value, nil
 }
 
 func (v *StringVisitor) VisitMemberAccess(n *parser.MemberAccess) (interface{}, error) {
-	return nil, nil
+	left, err := n.Left.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	right, err := n.Right.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Sprintf("%s.%s", left.(string), right.(string)), nil
 }
 
 func (v *StringVisitor) VisitBinaryOperator(n *parser.BinaryOperator) (interface{}, error) {
-	return nil, nil
+	left, err := n.Left.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	right, err := n.Right.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Sprintf(`%s %s %s`, left.(string), n.Operator, right.(string)), nil
 }
 
 func (v *StringVisitor) VisitName(n *parser.Name) (interface{}, error) {
-	return nil, nil
+	return strings.Join(n.Value, "."), nil
 }
 
+func (v *StringVisitor) VisitMethodInvocation(n *parser.MethodInvocation) (interface{}, error) {
+	exp, err := n.Expression.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	parameterStrings := make([]string, len(n.Parameters))
+	for i, p := range n.Parameters {
+		parameterString, err := p.Accept(v)
+		if err != nil {
+			return nil, err
+		}
+		parameterStrings[i] = parameterString.(string)
+	}
+	return fmt.Sprintf("%s(%s)", exp.(string), strings.Join(parameterStrings, ", ")), nil
+}
