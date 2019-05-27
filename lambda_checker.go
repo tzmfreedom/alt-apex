@@ -163,6 +163,7 @@ func (v *LambdaChecker) VisitWhile(n *parser.While) (interface{}, error) {
 }
 
 func (v *LambdaChecker) VisitLambda(n *parser.Lambda) (interface{}, error) {
+	n.Id = len(v.Lambdas)
 	v.Lambdas = append(v.Lambdas, n)
 	return nil, nil
 }

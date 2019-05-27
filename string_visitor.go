@@ -73,8 +73,8 @@ func (v *StringVisitor) VisitClass(n *parser.Class) (interface{}, error) {
 	}
 
 	lambdas := make([]string, len(v.Lambdas))
-	for i, l := range v.Lambdas {
-		lambda, err := v.createLambdaMethod(fmt.Sprintf("lambda_%d", i), l)
+	for _, l := range v.Lambdas {
+		lambda, err := v.createLambdaMethod(l.GetClassName(), l)
 		if err != nil {
 			return nil, err
 		}
@@ -96,12 +96,15 @@ func (v *StringVisitor) VisitClass(n *parser.Class) (interface{}, error) {
 }
 
 func (v *StringVisitor) VisitProperty(n *parser.Property) (interface{}, error) {
-	if _, ok := n.Expression.(*parser.Lambda); ok {
-		return "", nil
-	}
-	typeRef, err := n.TypeRef.Accept(v)
-	if err != nil {
-		return nil, err
+	var typeRef string
+	if l, ok := n.Expression.(*parser.Lambda); ok {
+		typeRef = l.GetClassName()
+	} else {
+		r, err := n.TypeRef.Accept(v)
+		if err != nil {
+			return nil, err
+		}
+		typeRef = r.(string)
 	}
 	expression := ""
 	if n.Expression != nil {
@@ -111,7 +114,7 @@ func (v *StringVisitor) VisitProperty(n *parser.Property) (interface{}, error) {
 		}
 		expression = " = " + e.(string)
 	}
-	return fmt.Sprintf(`%s %s%s`, typeRef.(string), n.Name, expression), nil
+	return fmt.Sprintf(`%s %s%s`, typeRef, n.Name, expression), nil
 }
 
 func (v *StringVisitor) VisitConstructor(n *parser.Constructor) (interface{}, error) {
@@ -350,7 +353,7 @@ func (v *StringVisitor) modifierString(modifiers []*parser.Modifier) (string, er
 }
 
 func (v *StringVisitor) VisitLambda(n *parser.Lambda) (interface{}, error) {
-	return nil, nil
+	return fmt.Sprintf(`new %s()`, n.GetClassName()), nil
 }
 
 func (v *StringVisitor) createLambdaMethod(name string, n *parser.Lambda) (string, error) {
@@ -374,8 +377,10 @@ func (v *StringVisitor) createLambdaMethod(name string, n *parser.Lambda) (strin
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf(`public %s(%s) {
-%s
+	return fmt.Sprintf(`class %s {
+    public run(%s) {
+    %s
+    }
 }`,
 		name,
 		strings.Join(parameters, ", "),

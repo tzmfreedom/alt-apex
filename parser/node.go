@@ -1,4 +1,5 @@
 package parser // KotlinParser
+import "fmt"
 
 type Node interface {
 	Accept(v Visitor) (interface{}, error)
@@ -137,8 +138,13 @@ type Name struct {
 }
 
 type Lambda struct {
+	Id int
 	Parameters []*Parameter
 	Statements []Node
+}
+
+func (n *Lambda) GetClassName() string {
+	return fmt.Sprintf("Lambda_%d", n.Id)
 }
 
 type Visitor interface {
