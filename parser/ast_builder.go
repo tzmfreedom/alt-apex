@@ -492,7 +492,23 @@ func (v *AstBuilder) VisitRangeExpression(ctx *RangeExpressionContext) interface
 }
 
 func (v *AstBuilder) VisitAdditiveExpression(ctx *AdditiveExpressionContext) interface{} {
-	return ctx.MultiplicativeExpression(0).Accept(v)
+	if len(ctx.AllMultiplicativeExpression()) == 1 {
+		return ctx.MultiplicativeExpression(0).Accept(v)
+	}
+	exp := &BinaryOperator{
+		Right: ctx.MultiplicativeExpression(0).Accept(v).(Node),
+	}
+	comparisons := ctx.AllMultiplicativeExpression()
+	for i, operator := range ctx.AllAdditiveOperator() {
+		assignmentOperator := operator.Accept(v).(string)
+		node := &BinaryOperator{}
+		node.Left = exp.Right
+		node.Operator = assignmentOperator
+		node.Right = comparisons[i+1].Accept(v).(Node)
+		exp.Right = node
+		exp = node
+	}
+	return exp
 }
 
 func (v *AstBuilder) VisitMultiplicativeExpression(ctx *MultiplicativeExpressionContext) interface{} {
@@ -891,7 +907,10 @@ func (v *AstBuilder) VisitIsOperator(ctx *IsOperatorContext) interface{} {
 }
 
 func (v *AstBuilder) VisitAdditiveOperator(ctx *AdditiveOperatorContext) interface{} {
-	return v.VisitChildren(ctx)
+	if ctx.ADD() != nil {
+		return ctx.ADD().GetText()
+	}
+	return ctx.SUB().GetText()
 }
 
 func (v *AstBuilder) VisitMultiplicativeOperation(ctx *MultiplicativeOperationContext) interface{} {

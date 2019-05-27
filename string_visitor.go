@@ -258,8 +258,9 @@ func (v *StringVisitor) VisitBlock(n *parser.Block) (interface{}, error) {
 }
 
 func (v *StringVisitor) VisitTypeRef(n *parser.TypeRef) (interface{}, error) {
-	name := strings.ToLower(strings.Join(n.Name, "."))
-	if mapped, ok := typeMapper[name]; ok {
+	name := strings.Join(n.Name, ".")
+	lowered := strings.ToLower(name)
+	if mapped, ok := typeMapper[lowered]; ok {
 		return mapped, nil
 	}
 	return name, nil
@@ -325,6 +326,19 @@ func (v *StringVisitor) VisitMethodInvocation(n *parser.MethodInvocation) (inter
 		}
 		parameterStrings[i] = parameterString.(string)
 	}
+	if ident, ok := n.Expression.(*parser.Identifier); ok {
+		val := string(ident.Value[0])
+		if strings.ToUpper(val) == val {
+			return fmt.Sprintf("new %s(%s)", exp.(string), strings.Join(parameterStrings, ", ")), nil
+		}
+	}
+	values := strings.Split(exp.(string), ".")
+	if len(values) > 0 {
+		val := string(values[len(values)-1][0])
+		if strings.ToUpper(val) == val {
+			return fmt.Sprintf("new %s(%s)", exp.(string), strings.Join(parameterStrings, ", ")), nil
+		}
+	}
 	return fmt.Sprintf("%s(%s)", exp.(string), strings.Join(parameterStrings, ", ")), nil
 }
 
@@ -340,6 +354,18 @@ func (v *StringVisitor) VisitWhile(n *parser.While) (interface{}, error) {
 	return fmt.Sprintf(`while (%s) %s`, cond.(string), block.(string)), nil
 }
 
+func (v *StringVisitor) VisitLambda(n *parser.Lambda) (interface{}, error) {
+	return fmt.Sprintf(`new %s()`, n.GetClassName()), nil
+}
+
+func (v *StringVisitor) VisitReturn(n *parser.Return) (interface{}, error) {
+	exp, err := n.Expression.Accept(v)
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Sprintf(`return %s`, exp.(string)), nil
+}
+
 func (v *StringVisitor) modifierString(modifiers []*parser.Modifier) (string, error) {
 	modifierStrings := make([]string, len(modifiers))
 	for i, accessModifier := range modifiers {
@@ -350,10 +376,6 @@ func (v *StringVisitor) modifierString(modifiers []*parser.Modifier) (string, er
 		modifierStrings[i] = modifierString.(string)
 	}
 	return strings.Join(modifierStrings, " "), nil
-}
-
-func (v *StringVisitor) VisitLambda(n *parser.Lambda) (interface{}, error) {
-	return fmt.Sprintf(`new %s()`, n.GetClassName()), nil
 }
 
 func (v *StringVisitor) createLambdaMethod(name string, n *parser.Lambda) (string, error) {

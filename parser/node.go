@@ -147,6 +147,10 @@ func (n *Lambda) GetClassName() string {
 	return fmt.Sprintf("Lambda_%d", n.Id)
 }
 
+type Return struct {
+	Expression Node
+}
+
 type Visitor interface {
 	VisitFile(*File) (interface{}, error)
 	VisitHeader(*Header) (interface{}, error)
@@ -173,6 +177,7 @@ type Visitor interface {
 	VisitMethodInvocation(*MethodInvocation) (interface{}, error)
 	VisitWhile(*While) (interface{}, error)
 	VisitLambda(*Lambda) (interface{}, error)
+	VisitReturn(*Return) (interface{}, error)
 }
 func (t *File) Accept(v Visitor) (interface{}, error) {
 	return v.VisitFile(t)
@@ -272,4 +277,8 @@ func (t *While) Accept(v Visitor) (interface{}, error) {
 
 func (t *Lambda) Accept(v Visitor) (interface{}, error) {
 	return v.VisitLambda(t)
+}
+
+func (t *Return) Accept(v Visitor) (interface{}, error) {
+	return v.VisitReturn(t)
 }

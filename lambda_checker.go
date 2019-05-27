@@ -167,3 +167,8 @@ func (v *LambdaChecker) VisitLambda(n *parser.Lambda) (interface{}, error) {
 	v.Lambdas = append(v.Lambdas, n)
 	return nil, nil
 }
+
+func (v *LambdaChecker) VisitReturn(n *parser.Return) (interface{}, error) {
+	n.Expression.Accept(v)
+	return nil, nil
+}

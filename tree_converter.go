@@ -245,6 +245,18 @@ func (v *TreeConverter) VisitName(n *parser.Name) (interface{}, error) {
 }
 
 func (v *TreeConverter) VisitMethodInvocation(n *parser.MethodInvocation) (interface{}, error) {
+	// TODO: impl
+	if ident, ok := n.Expression.(*parser.Identifier); ok && ident.Value == "sum" {
+		n.Expression = &parser.Name{
+			Value: []string{
+				ident.Value,
+				"run",
+			},
+		}
+	}
+	for _, p := range n.Parameters {
+		p.Accept(v)
+	}
 	return n, nil
 }
 
@@ -258,5 +270,14 @@ func (v *TreeConverter) VisitWhile(n *parser.While) (interface{}, error) {
 }
 
 func (v *TreeConverter) VisitLambda(n *parser.Lambda) (interface{}, error) {
+	lastIndex := len(n.Statements)-1
+	n.Statements[lastIndex] = &parser.Return{
+		Expression: n.Statements[lastIndex],
+	}
+	return n, nil
+}
+
+func (v *TreeConverter) VisitReturn(n *parser.Return) (interface{}, error) {
+	n.Expression.Accept(v)
 	return n, nil
 }
