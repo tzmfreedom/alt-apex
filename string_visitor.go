@@ -220,7 +220,7 @@ func (v *StringVisitor) VisitSwitch(n *parser.Switch) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		whens = append(whens, fmt.Sprintf(`else %s`, e.(string)))
+		whens = append(whens, fmt.Sprintf(`when else %s`, e.(string)))
 	}
 	return fmt.Sprintf(`switch on %s {
 %s
