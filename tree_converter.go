@@ -85,12 +85,12 @@ func (v *TreeConverter) VisitProperty(n *parser.Property) (interface{}, error) {
 			}
 			if switchStmt.Else != nil {
 				elseStatements := switchStmt.Else.Statements
-				lastIndex := len(elseStatements)-1
+				lastIndex := len(elseStatements) - 1
 				elseStatements[lastIndex] = &parser.BinaryOperator{
 					Left: &parser.Identifier{
 						Value: n.Name,
 					},
-					Right: elseStatements[lastIndex].(parser.Node),
+					Right:    elseStatements[lastIndex].(parser.Node),
 					Operator: "=",
 				}
 			}
@@ -270,7 +270,7 @@ func (v *TreeConverter) VisitWhile(n *parser.While) (interface{}, error) {
 }
 
 func (v *TreeConverter) VisitLambda(n *parser.Lambda) (interface{}, error) {
-	lastIndex := len(n.Statements)-1
+	lastIndex := len(n.Statements) - 1
 	n.Statements[lastIndex] = &parser.Return{
 		Expression: n.Statements[lastIndex],
 	}

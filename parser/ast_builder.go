@@ -10,7 +10,6 @@ type AstBuilder struct {
 	*BaseKotlinParserVisitor
 }
 
-
 func (v *AstBuilder) VisitKotlinFile(ctx *KotlinFileContext) interface{} {
 	preamble := ctx.Preamble().Accept(v)
 	klass := ctx.AllTopLevelObject()[0].Accept(v)
@@ -78,7 +77,7 @@ func (v *AstBuilder) VisitClassDeclaration(ctx *ClassDeclarationContext) interfa
 		}
 	}
 	return &Class{
-		Modifiers: modifiers,
+		Modifiers:          modifiers,
 		Name:               name,
 		PrimaryConstructor: constructor,
 		Declarations:       declarations,
@@ -199,9 +198,9 @@ func (v *AstBuilder) VisitFunctionDeclaration(ctx *FunctionDeclarationContext) i
 	block := ctx.FunctionBody().Accept(v).(*Block)
 	return &Method{
 		AccessModifiers: modifiers,
-		Identifier: identifier,
-		Parameters: parameters,
-		Statements: block,
+		Identifier:      identifier,
+		Parameters:      parameters,
+		Statements:      block,
 	}
 }
 
@@ -289,7 +288,7 @@ func (v *AstBuilder) VisitVariableDeclaration(ctx *VariableDeclarationContext) i
 	}
 	return &VariableDeclaration{
 		Identifier: name,
-		TypeRef: typeRef,
+		TypeRef:    typeRef,
 	}
 }
 
@@ -538,7 +537,7 @@ func (v *AstBuilder) VisitPostfixUnaryExpression(ctx *PostfixUnaryExpressionCont
 	if invoke, ok := operator.(*MethodInvocation); ok {
 		if invoke.Expression != nil {
 			expression = &MemberAccess{
-				Left: expression,
+				Left:  expression,
 				Right: invoke.Expression,
 			}
 		}
@@ -546,7 +545,7 @@ func (v *AstBuilder) VisitPostfixUnaryExpression(ctx *PostfixUnaryExpressionCont
 		return invoke
 	}
 	return &MemberAccess{
-		Left: expression,
+		Left:  expression,
 		Right: operator.(Node),
 	}
 }
@@ -584,14 +583,22 @@ func (v *AstBuilder) VisitParenthesizedExpression(ctx *ParenthesizedExpressionCo
 	return v.VisitChildren(ctx)
 }
 
+
+type callSuffix struct {
+	Type []*TypeRef
+	Args []Node
+}
+
 func (v *AstBuilder) VisitCallSuffix(ctx *CallSuffixContext) interface{} {
+	var typeArgs []*TypeRef
+	var valueArgs []Node
 	if args := ctx.TypeArguments(); args != nil {
-		args.Accept(v)
+		typeArgs = args.Accept(v).([]*TypeRef)
 	}
 	if vArgs := ctx.ValueArguments(); vArgs != nil {
-		return vArgs.Accept(v)
+		valueArgs = vArgs.Accept(v).([]Node)
 	}
-	panic("not impl")
+	return callSuffix{typeArgs, valueArgs}
 }
 
 func (v *AstBuilder) VisitAnnotatedLambda(ctx *AnnotatedLambdaContext) interface{} {
@@ -611,11 +618,15 @@ func (v *AstBuilder) VisitValueArguments(ctx *ValueArgumentsContext) interface{}
 }
 
 func (v *AstBuilder) VisitTypeArguments(ctx *TypeArgumentsContext) interface{} {
-	return v.VisitChildren(ctx)
+	tps := make([]*TypeRef, len(ctx.AllTypeProjection()))
+	for i, t := range ctx.AllTypeProjection() {
+		tps[i] = t.Accept(v).(*TypeRef)
+	}
+	return tps
 }
 
 func (v *AstBuilder) VisitTypeProjection(ctx *TypeProjectionContext) interface{} {
-	return v.VisitChildren(ctx)
+	return ctx.Ktype().Accept(v)
 }
 
 func (v *AstBuilder) VisitTypeProjectionModifierList(ctx *TypeProjectionModifierListContext) interface{} {
@@ -726,7 +737,7 @@ func (v *AstBuilder) VisitLambdaParameter(ctx *LambdaParameterContext) interface
 		declaration := decl.Accept(v).(*VariableDeclaration)
 		return &Parameter{
 			Identifier: declaration.Identifier,
-			TypeRef: declaration.TypeRef,
+			TypeRef:    declaration.TypeRef,
 		}
 	}
 	panic("not impl")
@@ -763,8 +774,8 @@ func (v *AstBuilder) VisitIfExpression(ctx *IfExpressionContext) interface{} {
 		elseStmt = ctx.ControlStructureBody(1).Accept(v).(*Block)
 	}
 	return &If{
-		Condition: cond,
-		IfStatement: ifStmt,
+		Condition:     cond,
+		IfStatement:   ifStmt,
 		ElseStatement: elseStmt,
 	}
 }
@@ -807,7 +818,7 @@ func (v *AstBuilder) VisitWhenEntry(ctx *WhenEntryContext) interface{} {
 		block := ctx.ControlStructureBody().Accept(v).(*Block)
 		return &When{
 			Conditions: conditions,
-			Block: block,
+			Block:      block,
 		}
 	}
 	return ctx.ControlStructureBody().Accept(v)
@@ -861,7 +872,7 @@ func (v *AstBuilder) VisitForExpression(ctx *ForExpressionContext) interface{} {
 	return &For{
 		Identifier: identifier,
 		Expression: expression.(Node),
-		Block: block,
+		Block:      block,
 	}
 }
 
@@ -870,7 +881,7 @@ func (v *AstBuilder) VisitWhileExpression(ctx *WhileExpressionContext) interface
 	block := ctx.ControlStructureBody().Accept(v).(*Block)
 	return &While{
 		Condition: cond,
-		Block: block,
+		Block:     block,
 	}
 }
 
@@ -931,12 +942,11 @@ func (v *AstBuilder) VisitPostfixUnaryOperation(ctx *PostfixUnaryOperationContex
 		node := ctx.PostfixUnaryExpression().Accept(v)
 		return node
 	}
-	if callSuffix := ctx.CallSuffix(); callSuffix != nil {
-		return &MethodInvocation{
-			Parameters: callSuffix.Accept(v).([]Node),
-		}
+	callSuffix := ctx.CallSuffix().Accept(v).(callSuffix)
+	return &MethodInvocation{
+		Parameters: callSuffix.Args,
+		Type: callSuffix.Type,
 	}
-	return v.VisitChildren(ctx)
 }
 
 func (v *AstBuilder) VisitMemberAccessOperator(ctx *MemberAccessOperatorContext) interface{} {

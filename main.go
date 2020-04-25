@@ -27,6 +27,8 @@ func main() {
 	node = r.(parser.Node)
 	checker := NewLambdaChecker()
 	node.Accept(checker)
+	v := NewTypeInferenceVisitor()
+	node.Accept(v)
 	visitor := &StringVisitor{
 		Lambdas: checker.Lambdas,
 	}

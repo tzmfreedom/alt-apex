@@ -13,7 +13,7 @@ var typeMapper = map[string]string{
 
 type StringVisitor struct {
 	NameSpace string
-	Lambdas []*parser.Lambda
+	Lambdas   []*parser.Lambda
 }
 
 func (v *StringVisitor) VisitFile(n *parser.File) (interface{}, error) {
@@ -81,7 +81,25 @@ func (v *StringVisitor) VisitClass(n *parser.Class) (interface{}, error) {
 		lambdas = append(lambdas, lambda)
 	}
 
+	propertyDeclarations := make([]string, len(n.PrimaryConstructor.Parameters))
+	for i, p := range n.PrimaryConstructor.Parameters {
+		s, err := p.TypeRef.Accept(v)
+		if err != nil {
+			return nil, err
+		}
+		if p.Expression != nil {
+			e, err := p.Expression.Accept(v)
+			if err != nil {
+				return nil, err
+			}
+			propertyDeclarations[i] = fmt.Sprintf("%s %s = %s;", s.(string), p.Identifier, e.(string))
+		} else {
+			propertyDeclarations[i] = fmt.Sprintf("%s %s;", s.(string), p.Identifier)
+		}
+	}
+
 	return fmt.Sprintf(`%s class %s_%s {
+%s
 %s
 %s
 %s
@@ -89,6 +107,7 @@ func (v *StringVisitor) VisitClass(n *parser.Class) (interface{}, error) {
 		modifierString,
 		v.NameSpace,
 		n.Name,
+		strings.Join(propertyDeclarations, "\n"),
 		primaryConstructor,
 		strings.Join(declarations, "\n"),
 		strings.Join(lambdas, "\n"),
@@ -96,16 +115,11 @@ func (v *StringVisitor) VisitClass(n *parser.Class) (interface{}, error) {
 }
 
 func (v *StringVisitor) VisitProperty(n *parser.Property) (interface{}, error) {
-	var typeRef string
-	if l, ok := n.Expression.(*parser.Lambda); ok {
-		typeRef = l.GetClassName()
-	} else {
-		r, err := n.TypeRef.Accept(v)
-		if err != nil {
-			return nil, err
-		}
-		typeRef = r.(string)
+	r, err := n.TypeRef.Accept(v)
+	if err != nil {
+		return nil, err
 	}
+	typeRef := r.(string)
 	expression := ""
 	if n.Expression != nil {
 		e, err := n.Expression.Accept(v)
@@ -267,7 +281,7 @@ func (v *StringVisitor) VisitTypeRef(n *parser.TypeRef) (interface{}, error) {
 }
 
 func (v *StringVisitor) VisitBoolean(n *parser.Boolean) (interface{}, error) {
-	if n.Value  {
+	if n.Value {
 		return "true", nil
 	}
 	return "false", nil
@@ -337,6 +351,20 @@ func (v *StringVisitor) VisitMethodInvocation(n *parser.MethodInvocation) (inter
 		val := string(values[len(values)-1][0])
 		if strings.ToUpper(val) == val {
 			return fmt.Sprintf("new %s(%s)", exp.(string), strings.Join(parameterStrings, ", ")), nil
+		}
+	}
+	if exp.(string) == "listOf" {
+		if n.Type != nil {
+			return fmt.Sprintf("new List<%s>()", strings.Join(n.Type[0].Name, ".")), nil
+		}
+	}
+	if exp.(string) == "mutableMap" {
+		if n.Type != nil {
+			return fmt.Sprintf(
+				"new Map<%s, %s>()",
+				strings.Join(n.Type[0].Name, "."),
+				strings.Join(n.Type[1].Name, "."),
+			), nil
 		}
 	}
 	return fmt.Sprintf("%s(%s)", exp.(string), strings.Join(parameterStrings, ", ")), nil

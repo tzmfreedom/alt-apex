@@ -15,7 +15,7 @@ type Header struct {
 }
 
 type Class struct {
-	Modifiers []*Modifier
+	Modifiers             []*Modifier
 	Name                  string
 	Properties            map[string]*Property
 	Methods               map[string]*Method
@@ -32,7 +32,7 @@ type Property struct {
 }
 
 type Constructor struct {
-	Name string
+	Name       string
 	Parameters []*Parameter
 	Block      *Block
 }
@@ -46,8 +46,8 @@ type Parameter struct {
 
 type Method struct {
 	AccessModifiers []*Modifier
-	Identifier []string
-	Parameters []*Parameter
+	Identifier      []string
+	Parameters      []*Parameter
 	Statements      *Block
 }
 
@@ -118,18 +118,19 @@ type Identifier struct {
 }
 
 type MemberAccess struct {
-	Left Node
+	Left  Node
 	Right Node
 }
 
 type BinaryOperator struct {
 	Operator string
-	Left Node
-	Right Node
+	Left     Node
+	Right    Node
 }
 
 type MethodInvocation struct {
 	Expression Node
+	Type       []*TypeRef
 	Parameters []Node
 }
 
@@ -138,7 +139,7 @@ type Name struct {
 }
 
 type Lambda struct {
-	Id int
+	Id         int
 	Parameters []*Parameter
 	Statements []Node
 }
@@ -149,6 +150,10 @@ func (n *Lambda) GetClassName() string {
 
 type Return struct {
 	Expression Node
+}
+
+type TypeProjection struct {
+	Name string
 }
 
 type Visitor interface {
@@ -179,6 +184,7 @@ type Visitor interface {
 	VisitLambda(*Lambda) (interface{}, error)
 	VisitReturn(*Return) (interface{}, error)
 }
+
 func (t *File) Accept(v Visitor) (interface{}, error) {
 	return v.VisitFile(t)
 }
